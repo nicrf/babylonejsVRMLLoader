@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+        <title>Babylon Template</title>
+
+        <style>
+            html, body {
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            #renderCanvas {
+                width: 100%;
+                height: 100%;
+                touch-action: none;
+            }
+        </style>
+
+        <script src="https://cdn.babylonjs.com/babylon.js"></script>
+        <script src="https://preview.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+        <script src="https://code.jquery.com/pep/0.4.3/pep.js"></script>
+        <script src="vrmlloader/VRMLLoader.js"></script>
+        <script src="vrmlloader/vrml.js"></script>
+    </head>
+
+   <body>
+
+    <canvas id="renderCanvas" touch-action="none"></canvas> //touch-action="none" for best results from PEP
+
+    <script>
+        var canvas = document.getElementById("renderCanvas"); // Get the canvas element 
+        var engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
+
+        /******* Add the create scene function ******/
+        var createScene = function () {
+
+            // Create the scene space
+            var scene = new BABYLON.Scene(engine);
+
+            // Add a camera to the scene and attach it to the canvas
+            var camera = new BABYLON.ArcRotateCamera("Camera", Math.PI , Math.PI , 2, new BABYLON.Vector3(0,0,5), scene);
+            camera.attachControl(canvas, true);
+
+            // Add lights to the scene
+			//Adding a light
+			var light = new BABYLON.PointLight("Omni", new BABYLON.Vector3(20, 20, 100), scene);
+            var light1 = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(1, 1, 0), scene);
+            var light2 = new BABYLON.PointLight("light2", new BABYLON.Vector3(0, 1, -1), scene);
+	
+
+			scene.registerBeforeRender(function () {
+				light.position = camera.position;
+			});
+			
+			BABYLON.SceneLoader.ImportMesh("", "", "house.wrl", scene, function (newMeshes) {
+				// Set the target of the camera to the first imported mesh
+				camera.target = newMeshes[0];
+			});
+			// Move the light with the camera
+			scene.registerBeforeRender(function () {
+				light.position = camera.position;
+			});
+
+            return scene;
+        };
+        /******* End of the create scene function ******/    
+		// Over/Out
+
+
+   
+        var scene = createScene(); //Call the createScene function
+	
+        // Register a render loop to repeatedly render the scene
+        engine.runRenderLoop(function () { 
+                scene.render();
+        });
+
+        // Watch for browser/canvas resize events
+        window.addEventListener("resize", function () { 
+                engine.resize();
+        });
+		
+		//When click event is raised
+		window.addEventListener("click", function () {
+		   // We try to pick an object
+		   var pickResult = scene.pick(scene.pointerX, scene.pointerY);
+		   if (pickResult.hit) {
+				if (pickResult.pickedMesh.material && pickResult.pickedMesh.material.wireframe)
+					pickResult.pickedMesh.material.wireframe = !pickResult.pickedMesh.material.wireframe;
+				console.log(pickResult.pickedMesh.id);
+			}
+		});
+    </script>
+
+   </body>
+
+</html>
