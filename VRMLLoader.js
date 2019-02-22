@@ -185,25 +185,30 @@ var BABYLON;
 				return new BABYLON.MeshBuilder.CreateSphere(name, {
 					diameter: data.radius
 					}); 
-			} else if (data.node === 'PointSet') {	//To be test
-				//var points = [];
-				var indices = []; 
-				var points = new  BABYLON.TransformNode(name);
+			} else if (data.node === 'PointSet') {	//To be test	
+				var points = new BABYLON.Mesh(name);
+				var indices = [];
+				var positions= [];
+				var normals= [];
 				if (data.coord) {
-					indices = data.coordIndex.toString().split(",");
-					for (var i = 0; i < indices.length; i ++ ) { //Not sure
-						//points.push(new BABYLON.Mesh("point");point.position = new BABYLON.Vector3(data.coord.point[i].x,data.coord.point[i].y,data.coord.point[i].z))
-					}					
-				}
+					for (var i = 0; i < indices.length; i ++ ) {
+						points.push(data.coord.point[i].x,data.coord.point[i].y,data.coord.point[i].z);
+						indices.push(i);
+						normals.push(1,1,1);
+					}
+					var vertexData = new BABYLON.VertexData();
+					vertexData.positions = positions;
+					vertexData.indices = indices;
+					vertexData.normals = normals;					
+					vertexData.applyToMesh(points, true);					
+				}				
 				return points;
-			} else if (data.node === 'IndexedLineSet') {	//To be test
+			} else if (data.node === 'IndexedLineSet') {
 				var positions = [];
 				var points = new  BABYLON.TransformNode(name);
 				if (data.coord) {
-					//indices = data.coordIndex.toString().split(",");
 					for (var i = 0; i < data.coordIndex.length; i ++ ) {
-						var indice = data.coordIndex[i];
-						
+						var indice = data.coordIndex[i];						
 						var point =  new BABYLON.Mesh.CreateLines(name + "_" + i, [
 							new BABYLON.Vector3(data.coord.point[indice[0]].x,data.coord.point[indice[0]].y,data.coord.point[indice[0]].z),
 							new BABYLON.Vector3(data.coord.point[indice[1]].x,data.coord.point[indice[1]].y,data.coord.point[indice[1]].z),
@@ -217,26 +222,78 @@ var BABYLON;
 			} else if (data.node === 'IndexedFaceSet') {	//To be done
 				var positions = [];
 				var indices = [];
+				var uvs = [];
 				var faces = [];
-				var customMesh = new BABYLON.Mesh(name, scene);
+				var face_uvs=[[0,0],[1,0],[1,1],[0,1]];
+				
+				//var groupMesh = new BABYLON.Mesh(name, scene);
 				if (data.coord) {
-
+					// positions
+					if ( data.texCoord) {
+						uvs = data.texCoord.point;
+					}
 					for (var i = 0; i < data.coord.point.length; i ++ ) {
+						if (!data.texCoord) {
+							uvs.push(data.coord.point[i]);
+						}
 						positions.push(data.coord.point[i].x,data.coord.point[i].y,data.coord.point[i].z);
 					}
-					/*for (var i = 0; i < data.coordIndex.length; i ++ ) {
-						indices.push(data.coordIndex[i].join(", "));
-					}*/
+				}	
+					// indices from faces		  
+					for (var f = 0; f < data.coordIndex.length; f++) {
+					  for(var j = 0; j < data.coordIndex[f].length; j++) {
+						uvs=uvs.concat(face_uvs[j]);
+					  }
+					  for (i = 0; i < data.coordIndex[f].length - 2; i++) {
+						  indices.push(data.coordIndex[f][0], data.coordIndex[f][i + 2], data.coordIndex[f][i + 1]);
+					  }
+					}
+
+					//var indices = data.coordIndex[i];
+					var creaseAngle = data.creaseAngle ? data.creaseAngle : 2;
+					//Empty array to contain calculated values or normals added
+					var normals = [];
+					//Calculations of normals added
+					BABYLON.VertexData.ComputeNormals(positions, indices, normals);					
+					//groupMesh.convertToFlatShadedMesh();
+					//customMesh.convertToUnIndexedMesh();
+						
+					//}
+					/*
 					if (data.ccw && data.ccw === false)
 						console.error("CCW")
 					var skip = 0;
 					for ( var i = 0, j = data.coordIndex.length; i < j; i ++ ) {
 						var indexes = data.coordIndex[i];
+						if ( data.texCoordIndex) {
+							uvIndexes = data.texCoordIndex[ i ];
+						} else {
+							// default texture coord index
+							uvIndexes = indexes;
+						}
 						skip = 0;
 						while (indexes.length >= 3 && skip < (indexes.length - 2)) {
 							var a = indexes[0];
 							var b = indexes[skip + (data.ccw ? 1 : 2)];
 							var c = indexes[skip + (data.ccw ? 2 : 1)];
+							if ( uvs && uvIndexes ) {
+								face_uvs [ 0 ].push([
+									new BABYLON.Vector2(
+										uvs[ uvIndexes[ 0 ] ].x,
+										uvs[ uvIndexes[ 0 ] ].y
+									),
+									new BABYLON.Vector2(
+										uvs[ uvIndexes[ skip + (data.ccw ? 1 : 2) ] ].x,
+										uvs[ uvIndexes[ skip + (data.ccw ? 1 : 2) ] ].y
+									),
+									new BABYLON.Vector2(
+										uvs[ uvIndexes[ skip + (data.ccw ? 2 : 1) ] ].x,
+										uvs[ uvIndexes[ skip + (data.ccw ? 2 : 1) ] ].y
+									)
+								]);
+							} else {
+								//this.log('Missing either uvs or indexes');
+							}
 							skip++;
 							faces.push(a, b, c);
 						}
@@ -245,18 +302,27 @@ var BABYLON;
 					var creaseAngle = data.creaseAngle ? data.creaseAngle : 2;
 					//Empty array to contain calculated values or normals added
 					var normals = [];
-
+					
 					//Calculations of normals added
-					//BABYLON.VertexData.ComputeNormals(positions, indices, normals);
-					var vertexData = new BABYLON.VertexData();
+					BABYLON.VertexData.ComputeNormals(positions, indices, normals);
+					BABYLON.VertexData._ComputeSides(BABYLON.Mesh.FRONTSIDE, positions, indices, normals, uvs);
+					*/
+				/*	var vertexData = new BABYLON.VertexData();
 					vertexData.positions = positions;
-					vertexData.indices = indices; 
-					//vertexData.normals = normals; 
-					vertexData.applyToMesh(customMesh);
-
-				}
-				customMesh.convertToUnIndexedMesh();
-				return customMesh;
+					vertexData.indices =faces; 
+					vertexData.normals = normals; 
+					vertexData.uvs = uvs; */
+					var polygon = new BABYLON.Mesh(name);
+					polygon.setVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
+					polygon.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
+					polygon.setIndices(indices);
+					polygon.computeWorldMatrix(true);
+					//vertexData.applyToMesh(polygon);
+					polygon.convertToFlatShadedMesh();
+					return polygon;
+				//}
+				
+				//return groupMesh;
 			}
 		}
         return VRMLFileLoader;
