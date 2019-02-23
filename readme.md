@@ -8,13 +8,13 @@ Based on THREEJS VRMLLoader
 
 Everything :
 
-* Material
+* Material texure
 * Faceset Data :
-  * All data
+  * separe polygon (-1)
   * Normal that work
   * UVS
 * Performance :
-  * Try small.wrl and you will understand
+  * Array to load large model
 * Why I mirror?!
 
 ## Try
