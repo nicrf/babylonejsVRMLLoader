@@ -6,6 +6,8 @@
             this.extensions = ".wrl";
             this.forceLamberMaterial = true;
             this.debug = false;
+            this.useFlatMaterial = true;
+            //this.useFlatMaterial = true;
             this.mesh = [];
             this.defines = {};
         }
@@ -39,9 +41,15 @@
         };
 
         VRMLFileLoader.prototype.parseNode = function (data,parent) {
+			var name = "";	
+			if (data.name) {
+				name = data.name;	
+			} else if (data.node){
+				name = data.node;
+			}
 			if (this.debug === true ) {
 				console.log("Parse an node " + data.node);
-				if (data.name) {
+				if (name) {
 					console.log("Parse an node " + data.name);
 				}
 			}
@@ -49,10 +57,7 @@
 			switch(data.node) {
 				case 'Transform' :
 				case 'Group' :
-					var name = "";
-					if (data.name) {
-						name = data.name;
-					}
+									
 					object =  new  BABYLON.TransformNode(name);//BABYLON.Mesh.CreateBox(name, 0, scene);
 					if (parent !== undefined) {
 						object.parent = parent;
@@ -80,9 +85,49 @@
 				case 'Shape':
 					object = this.addShape(data,parent);
 					break;
+				case 'DirectionalLight':	//ambientIntensity 
+					object = new BABYLON.DirectionalLight(name, new BABYLON.Vector3(data.direction.x, data.direction.y, data.direction.z));
+					if (data.on) {
+						object.setEnabled(data.on);
+					}
+					if (data.color) {
+						object.diffuse = new BABYLON.Color3(data.color.x, data.color.y, data.color.z);
+						object.specular = new BABYLON.Color3(data.color.x, data.color.y, data.color.z);
+					}	
+					if (data.intensity) {
+						object.intensity = data.intensity;
+					}					
+					if (parent !== undefined) {
+						object.parent = parent;
+					}
+					break;
+				case 'PointLight':
+					object = new BABYLON.PointLight(name, new BABYLON.Vector3(data.location.x, data.location.y, data.location.z));
+					if (data.on) {
+						object.setEnabled(data.on);
+					}
+					if (data.color) {
+						object.diffuse = new BABYLON.Color3(data.color.x, data.color.y, data.color.z);
+						object.specular = new BABYLON.Color3(data.color.x, data.color.y, data.color.z);
+					}	
+					if (data.intensity) {
+						object.intensity = data.intensity;
+					}					
+					if (parent !== undefined) {
+						object.parent = parent;
+					}
+					break;
+				case 'IndexedFaceSet':
+				case 'IndexedLineSet':
+				case 'PointSet':
+				case 'Sphere':
+				case 'Cone':
+				case 'Cylinder':
+				case 'Box':
+					object = this.getGeometry(data.geometry,parent);
+					break;
 				case 'Light':
 				case 'AmbientLight':
-				case 'PointLight':
 				case 'Background':
 				case "OrientationInterpolator":
 				case "PositionInterpolator":
@@ -146,7 +191,7 @@
 		
 
 		VRMLFileLoader.prototype.buildMaterialColorize = function (materialInfo) {	
-			var mat = new BABYLON.StandardMaterial();			
+			var mat = new BABYLON.StandardMaterial("",scene);			
             if (materialInfo.diffuseColor){
 				mat.diffuseColor =   new BABYLON.Color3(materialInfo.diffuseColor.x,materialInfo.diffuseColor.y, materialInfo.diffuseColor.z);
 			}			
@@ -183,6 +228,9 @@
 			var geometry = this.buildGeometry(data);
 			if (geometry)
 				geometry.parent = parent;
+			if (this.useFlatMaterial===true){
+				geometry.convertToFlatShadedMesh();
+			}
 			return geometry;
 		}
 			
@@ -200,25 +248,25 @@
 					height: s.y,
 					width : s.x,
 					depth : s.z
-				});;
+				},scene);
 			} else if (data.node === 'Cylinder') { //data.radius, data.radius, data.height
 				return new BABYLON.MeshBuilder.CreateCylinder(name, {
 					height:data.height,
 					diameterTop: data.radius,
 					diameterBottom: data.radius
-					});
+					},scene);
 			} else if (data.node === 'Cone') {
 				return new BABYLON.MeshBuilder.CreateCylinder(name, {
 					height:data.height,
 					diameterTop: data.radius,
 					diameterBottom: data.radius
-				});			
+				},scene);			
 			} else if (data.node === 'Sphere') {
 				return new BABYLON.MeshBuilder.CreateSphere(name, {
 					diameter: data.radius
-					}); 
+					},scene); 
 			} else if (data.node === 'PointSet') {	//To be test	
-				var points = new BABYLON.Mesh(name);
+				var points = new BABYLON.Mesh(name,scene);
 				var indices = [];
 				var positions= [];
 				var normals= [];
@@ -232,8 +280,8 @@
 					vertexData.positions = positions;
 					vertexData.indices = indices;
 					vertexData.normals = normals;					
-					vertexData.applyToMesh(points, true);					
-				}				
+					vertexData.applyToMesh(points, true);				
+				}			
 				return points;
 			} else if (data.node === 'IndexedLineSet') {
 				var lines = [];
@@ -247,7 +295,7 @@
                         ]);						
 					}
 				}
-                var points = new BABYLON.MeshBuilder.CreateLineSystem(name,{lines: lines, updatable: true});
+                var points = new BABYLON.MeshBuilder.CreateLineSystem(name,{lines: lines, updatable: true},scene);
 				return points;
 			} else if (data.node === 'IndexedFaceSet') {	//To be done
 				var positions = [];
@@ -255,7 +303,9 @@
 				var uvs = [];
 				var faces = [];
 				var face_uvs=[[0,0],[1,0],[1,1],[0,1]];
-
+				if (name =="trap") {
+					console.log(data);
+				}
 				if (data.coord) {
 					// positions
 					if ( data.texCoord) {
@@ -267,7 +317,9 @@
 						}
 						positions.push(data.coord.point[i].x,data.coord.point[i].y,data.coord.point[i].z);
 					}
-				}	
+				}
+				if (data.coordIndex && data.coordIndex.length && data.coordIndex.length>0) {
+					//Bug when we got -1 coordIndex to separate indices for each polygon - To be done - But EPLAN do not created face with multiple polygone
 					// indices from faces		  
 					for (var f = 0; f < data.coordIndex.length; f++) {
 					  for(var j = 0; j < data.coordIndex[f].length; j++) {
@@ -277,19 +329,19 @@
 						  indices.push(data.coordIndex[f][0], data.coordIndex[f][i + 2], data.coordIndex[f][i + 1]);
 					  }
 					}
-					var creaseAngle = data.creaseAngle ? data.creaseAngle : 2;
-					//Empty array to contain calculated values or normals added
-					var normals = [];
-					//Calculations of normals added
-					BABYLON.VertexData.ComputeNormals(positions, indices, normals);					
-					var polygon = new BABYLON.Mesh(name);
-					polygon.setVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
-					polygon.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
-					polygon.setIndices(indices);
-					polygon.computeWorldMatrix(true);
-					//polygon.convertToFlatShadedMesh();
-                   // polygon.forceSharedVertices();
-					return polygon;
+				}
+				var creaseAngle = data.creaseAngle ? data.creaseAngle : 2;
+				//Empty array to contain calculated values or normals added
+				var normals = [];
+				//Calculations of normals added
+				BABYLON.VertexData.ComputeNormals(positions, indices, normals);					
+				var polygon = new BABYLON.Mesh(name,scene);
+				polygon.setVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
+				polygon.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
+				polygon.setIndices(indices);
+				polygon.computeWorldMatrix(true);					
+				// polygon.forceSharedVertices();
+				return polygon;
 			}
 		}
         return VRMLFileLoader;
