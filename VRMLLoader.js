@@ -1,27 +1,28 @@
-/**
-* Simple VRML parser
-* Use on https://github.com/bartmcleod/VrmlParser 
-* Based on THREEJS VRMLLoader
-*/
-var BABYLON;
 (function (BABYLON) {
     var VRMLFileLoader = /** @class */ (function () {
         function VRMLFileLoader() {
 			var _this = this;
             this.name = "vrml";
             this.extensions = ".wrl";
+            this.forceLamberMaterial = true;
+            this.debug = false;
             this.mesh = [];
             this.defines = {};
         }
         VRMLFileLoader.prototype.importMesh = function (meshesNames, scene, data, rootUrl, meshes, particleSystems, skeletons) {
+			scene.useGeometryIdsMap = true;
+			scene.useMaterialMeshMap = true;
+			scene.useClonedMeshMap = true;
+			engine.stopRenderLoop();
 			//parse VRML
 			var tree = vrmlParser.parse(data);
 
-			console.log(tree);
 			for ( var i = 0, l = tree.length; i < l; i ++ ) {
 				this.parseNode(tree[i]);
 			}
-			console.log(this.defines);
+			engine.runRenderLoop(function () {
+					scene.render();
+			});
         };
         VRMLFileLoader.prototype.load = function (scene, data, rootUrl) {
             var result = this.importMesh(null, scene, data, rootUrl, null, null, null);
@@ -38,9 +39,11 @@ var BABYLON;
         };
 
         VRMLFileLoader.prototype.parseNode = function (data,parent) {
-			console.log("Parse an node " + data.node);
-			if (data.name) {
-				console.log("Parse an node " + data.name);
+			if (this.debug === true ) {
+				console.log("Parse an node " + data.node);
+				if (data.name) {
+					console.log("Parse an node " + data.name);
+				}
 			}
 			var object = parent;
 			switch(data.node) {
@@ -49,45 +52,33 @@ var BABYLON;
 					var name = "";
 					if (data.name) {
 						name = data.name;
-						//this.defines[ name ] = object;
 					}
 					object =  new  BABYLON.TransformNode(name);//BABYLON.Mesh.CreateBox(name, 0, scene);
 					if (parent !== undefined) {
 						object.parent = parent;
-						if (data.translation) {
-							var t = data.translation;
-							object.locallyTranslate( new BABYLON.Vector3(t.x, t.y, t.z ));
-						}
-						if (data.rotation) {
-							var r = data.rotation;						
-							object.rotate(new BABYLON.Vector3(r.x, r.y, r.z ), r.w, BABYLON.Space.LOCAL);							
-						}
-						if (data.scale) {
-							var s = data.scale;
-							object.scaling = new BABYLON.Vector3(s.x, s.y, s.z );
-						}					
-					} else {
-						if (data.translation) {
-							var t = data.translation;
-							object.position = new BABYLON.Vector3(t.x, t.y, t.z ); 
-						}
-						if (data.rotation) {
-							var r = data.rotation;						
-							object.rotationQuaternion = new BABYLON.Quaternion(r.x, r.y, r.z , r.w);						
-						}
-						if (data.scale) {
-							var s = data.scale;
-							object.scaling = new BABYLON.Vector3(s.x, s.y, s.z );
-						}
 					}
-					
+					var CoR_At = new BABYLON.Vector3(0, 0, 0);
+					if (data.center) {
+						CoR_At = new BABYLON.Vector3(data.center.x,data.center.y,data.center.z); //To be tested
+					}
+					if (data.translation) {
+						var t = data.translation;
+						object.position = new BABYLON.Vector3(t.x, t.y, t.z ); 
+					}
+					if (data.rotation) {
+						var r = data.rotation;		
+						object.rotationQuaternion = new BABYLON.Quaternion.RotationAxis( new BABYLON.Vector3(r.x, r.y, r.z ),r.radians);
+					} else {
+						object.rotationQuaternion = null;
+						object.rotation = new BABYLON.Vector3(0,0,0);
+					}
+					if (data.scale) {
+						var s = data.scale;
+						object.scaling = new BABYLON.Vector3(s.x, s.y, s.z );
+					}	
 					break;
 				case 'Shape':
 					object = this.addShape(data,parent);
-					/*if (object) {
-						object.parent = parent;
-						//this.push(object);
-					}*/
 					break;
 				case 'Light':
 				case 'AmbientLight':
@@ -103,36 +94,76 @@ var BABYLON;
 				case "TimeSensor":
 				case "TouchSensor":
 				default:
-					console.warn(data.node + " type node is not implemented")
+					if (this.debug === true) {
+						console.warn(data.node + " type node is not implemented");
+					}
 					break;
 				case undefined:
-					console.warn("Node is not defined")
-					break;
+					if (this.debug === true) {
+						console.warn("Node is not defined");
+					}
+					break;				
 			}
 			if (data.children) {
 				for ( var i = 0, l = data.children.length; i < l; i ++ ) {
 					this.parseNode( data.children[ i ], object );
 				}
-			}			
+			}	
+					
 		}
 		
 		 VRMLFileLoader.prototype.addShape = function (data,parent) {			
-			var mat = null;// loadMaterial(data,parent,model);
+			var mat = this.loadMaterial(data,parent);
 			var geometry = this.getGeometry(data.geometry,parent);//loadGeometry(data,parent,model);
 			if (geometry && mat) {
-				/*return new xeogl.Mesh({
-					geometry:geometry,
-					material:mat
-				});	*/
-			} else if (geometry) {
-				/*return new xeogl.Mesh({
-					geometry:geometry
-				});*/
-			}
+				geometry.material = mat;
+			} 
 			return geometry;
 		}
 		
-		 VRMLFileLoader.prototype.parseGeometry = function (data,parent) {		
+		VRMLFileLoader.prototype.loadMaterial = function loadMaterial(data,parent) {
+			var appearance = data.appearance; //child??
+			if (appearance) {
+				var materialsInfo = appearance.material;
+				var material;
+				if (materialsInfo) {
+					if (Array.isArray(materialsInfo)){
+						//To be linked to mesh
+						for (var i = 0, len = materialsInfo.length; i < len; i++) {
+							material = this.buildMaterialColorize(materialInfo[i]);					
+						}
+					} else {
+						if (this.forceLamberMaterial === true) {
+							return this.buildMaterialColorize(materialsInfo);
+						} else {
+							console.warn("Texture not implemented");
+						}
+					}
+				}
+			}			
+			//ImageTexture To Be Done
+		}
+		
+
+		VRMLFileLoader.prototype.buildMaterialColorize = function (materialInfo) {	
+			var mat = new BABYLON.StandardMaterial();			
+            if (materialInfo.diffuseColor){
+				mat.diffuseColor =   new BABYLON.Color3(materialInfo.diffuseColor.x,materialInfo.diffuseColor.y, materialInfo.diffuseColor.z);
+			}			
+			if (materialInfo.emissiveColor){
+				mat.emissiveColor =   new BABYLON.Color3(materialInfo.emissiveColor.x,materialInfo.emissiveColor.y, materialInfo.emissiveColor.z);
+			}			
+			if (materialInfo.specularColor){
+				mat.specularColor =   new BABYLON.Color3(materialInfo.specularColor.x,materialInfo.specularColor.y, materialInfo.specularColor.z);
+			}
+			//ambientColor, texture to do
+			if (materialInfo.transparency) {
+				mat.alpha = materialInfo.transparency;
+			}	
+			return mat;
+		}
+
+		VRMLFileLoader.prototype.parseGeometry = function (data,parent) {		
 			var geometrysInfo = data.geometry;
 			if (geometrysInfo) {
 				if (Array.isArray(geometrysInfo)){
@@ -156,11 +187,12 @@ var BABYLON;
 		}
 			
         VRMLFileLoader.prototype.buildGeometry = function (data) {
-			console.log("Shape as : "+ data.node);
-			var name = "";
+			if (this.debug === true) {
+				console.log("Shape as : "+ data.node);
+			}
+			var name = data.node;
 			if (data.name) {
 				name = data.name;
-				//this.defines[ name] = shape;
 			}
 			if ( data.node === 'Box' ) {
 				var s = data.size;
@@ -204,20 +236,18 @@ var BABYLON;
 				}				
 				return points;
 			} else if (data.node === 'IndexedLineSet') {
-				var positions = [];
-				var points = new  BABYLON.TransformNode(name);
+				var lines = [];
 				if (data.coord) {
+
 					for (var i = 0; i < data.coordIndex.length; i ++ ) {
 						var indice = data.coordIndex[i];						
-						var point =  new BABYLON.Mesh.CreateLines(name + "_" + i, [
+						lines.push([
 							new BABYLON.Vector3(data.coord.point[indice[0]].x,data.coord.point[indice[0]].y,data.coord.point[indice[0]].z),
 							new BABYLON.Vector3(data.coord.point[indice[1]].x,data.coord.point[indice[1]].y,data.coord.point[indice[1]].z),
-							]).parent = points;
-						
+                        ]);						
 					}
 				}
-				if (points.convertToUnIndexedMesh)
-					points.convertToUnIndexedMesh();
+                var points = new BABYLON.MeshBuilder.CreateLineSystem(name,{lines: lines, updatable: true});
 				return points;
 			} else if (data.node === 'IndexedFaceSet') {	//To be done
 				var positions = [];
@@ -225,8 +255,7 @@ var BABYLON;
 				var uvs = [];
 				var faces = [];
 				var face_uvs=[[0,0],[1,0],[1,1],[0,1]];
-				
-				//var groupMesh = new BABYLON.Mesh(name, scene);
+
 				if (data.coord) {
 					// positions
 					if ( data.texCoord) {
@@ -248,81 +277,19 @@ var BABYLON;
 						  indices.push(data.coordIndex[f][0], data.coordIndex[f][i + 2], data.coordIndex[f][i + 1]);
 					  }
 					}
-
-					//var indices = data.coordIndex[i];
 					var creaseAngle = data.creaseAngle ? data.creaseAngle : 2;
 					//Empty array to contain calculated values or normals added
 					var normals = [];
 					//Calculations of normals added
 					BABYLON.VertexData.ComputeNormals(positions, indices, normals);					
-					//groupMesh.convertToFlatShadedMesh();
-					//customMesh.convertToUnIndexedMesh();
-						
-					//}
-					/*
-					if (data.ccw && data.ccw === false)
-						console.error("CCW")
-					var skip = 0;
-					for ( var i = 0, j = data.coordIndex.length; i < j; i ++ ) {
-						var indexes = data.coordIndex[i];
-						if ( data.texCoordIndex) {
-							uvIndexes = data.texCoordIndex[ i ];
-						} else {
-							// default texture coord index
-							uvIndexes = indexes;
-						}
-						skip = 0;
-						while (indexes.length >= 3 && skip < (indexes.length - 2)) {
-							var a = indexes[0];
-							var b = indexes[skip + (data.ccw ? 1 : 2)];
-							var c = indexes[skip + (data.ccw ? 2 : 1)];
-							if ( uvs && uvIndexes ) {
-								face_uvs [ 0 ].push([
-									new BABYLON.Vector2(
-										uvs[ uvIndexes[ 0 ] ].x,
-										uvs[ uvIndexes[ 0 ] ].y
-									),
-									new BABYLON.Vector2(
-										uvs[ uvIndexes[ skip + (data.ccw ? 1 : 2) ] ].x,
-										uvs[ uvIndexes[ skip + (data.ccw ? 1 : 2) ] ].y
-									),
-									new BABYLON.Vector2(
-										uvs[ uvIndexes[ skip + (data.ccw ? 2 : 1) ] ].x,
-										uvs[ uvIndexes[ skip + (data.ccw ? 2 : 1) ] ].y
-									)
-								]);
-							} else {
-								//this.log('Missing either uvs or indexes');
-							}
-							skip++;
-							faces.push(a, b, c);
-						}
-					}
-					indices = faces.toString().split(",");
-					var creaseAngle = data.creaseAngle ? data.creaseAngle : 2;
-					//Empty array to contain calculated values or normals added
-					var normals = [];
-					
-					//Calculations of normals added
-					BABYLON.VertexData.ComputeNormals(positions, indices, normals);
-					BABYLON.VertexData._ComputeSides(BABYLON.Mesh.FRONTSIDE, positions, indices, normals, uvs);
-					*/
-				/*	var vertexData = new BABYLON.VertexData();
-					vertexData.positions = positions;
-					vertexData.indices =faces; 
-					vertexData.normals = normals; 
-					vertexData.uvs = uvs; */
 					var polygon = new BABYLON.Mesh(name);
 					polygon.setVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
 					polygon.setVerticesData(BABYLON.VertexBuffer.NormalKind, normals);
 					polygon.setIndices(indices);
 					polygon.computeWorldMatrix(true);
-					//vertexData.applyToMesh(polygon);
-					polygon.convertToFlatShadedMesh();
+					//polygon.convertToFlatShadedMesh();
+                   // polygon.forceSharedVertices();
 					return polygon;
-				//}
-				
-				//return groupMesh;
 			}
 		}
         return VRMLFileLoader;
