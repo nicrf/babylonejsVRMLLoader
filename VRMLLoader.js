@@ -8,6 +8,7 @@
             this.debug = true;
             this.showInfo = true;
             this.useFlatMaterial = true;
+            this.useRightHandedSystem = true;
             this.totalNode = 0;
             this.doneNode = 0;
             //this.useFlatMaterial = true;
@@ -18,6 +19,7 @@
 			scene.useGeometryIdsMap = true;
 			scene.useMaterialMeshMap = true;
 			scene.useClonedMeshMap = true;
+			scene.useRightHandedSystem = this.useRightHandedSystem;
 			engine.stopRenderLoop();
 			//parse VRML
 			if (this.debug === true ) {
@@ -101,7 +103,7 @@
 					} else {
 						object.rotationQuaternion = null;
 						object.rotation = new BABYLON.Vector3(0,0,0);
-					}
+					}					
 					if (data.scale) {
 						var s = data.scale;
 						object.scaling = new BABYLON.Vector3(s.x, s.y, s.z );
