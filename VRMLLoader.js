@@ -5,8 +5,11 @@
             this.name = "vrml";
             this.extensions = ".wrl";
             this.forceLamberMaterial = true;
-            this.debug = false;
+            this.debug = true;
+            this.showInfo = true;
             this.useFlatMaterial = true;
+            this.totalNode = 0;
+            this.doneNode = 0;
             //this.useFlatMaterial = true;
             this.mesh = [];
             this.defines = {};
@@ -17,14 +20,26 @@
 			scene.useClonedMeshMap = true;
 			engine.stopRenderLoop();
 			//parse VRML
+			if (this.debug === true ) {
+				console.log("Parse the file");
+			}
 			var tree = vrmlParser.parse(data);
-
+			data = null; //Free memory
+			if (this.debug === true ) {
+				console.log(tree);
+			}
+			this.totalNode = this.countNode(tree.nodeDefinitions);
+			delete tree.nodeDefinitions; //Free memory
+			if (this.debug === true ) {
+				console.log("Total node find : " + this.totalNode);
+			}
 			for ( var i = 0, l = tree.length; i < l; i ++ ) {
 				this.parseNode(tree[i]);
 			}
 			engine.runRenderLoop(function () {
 					scene.render();
 			});
+			return true;
         };
         VRMLFileLoader.prototype.load = function (scene, data, rootUrl) {
             var result = this.importMesh(null, scene, data, rootUrl, null, null, null);
@@ -34,12 +49,28 @@
             return result;
         };
         VRMLFileLoader.prototype.loadAssetContainer = function (scene, data, rootUrl, onError) {
-            var container = new BABYLON.AssetContainer(scene);
+            /*var container = new BABYLON.AssetContainer(scene);
             this.importMesh(null, scene, data, rootUrl, container.meshes, null, null);
+			result.meshes.forEach(function (mesh) { return container.meshes.push(mesh); });
             container.removeAllFromScene();
-            return container;
+            return container;*/
+			return this.importMesh(null, scene, data, rootUrl, container.meshes, null, null).then(function (result) {
+                var container = new BABYLON.AssetContainer(scene);
+                result.meshes.forEach(function (mesh) { return container.meshes.push(mesh); });
+                container.removeAllFromScene();
+                return container;
+            });
         };
 
+        VRMLFileLoader.prototype.countNode = function (obj) {
+			var count = 0;
+			for (var property in obj) {
+				if (Object.prototype.hasOwnProperty.call(obj, property)) {
+					count++;
+				}
+			}
+			return count;
+		}
         VRMLFileLoader.prototype.parseNode = function (data,parent) {
 			var name = "";	
 			if (data.name) {
@@ -48,17 +79,13 @@
 				name = data.node;
 			}
 			if (this.debug === true ) {
-				console.log("Parse an node " + data.node);
-				if (name) {
-					console.log("Parse an node " + data.name);
-				}
+				console.log("Parse an node " + data.node + " named " + name);
 			}
 			var object = parent;
 			switch(data.node) {
 				case 'Transform' :
-				case 'Group' :
-									
-					object =  new  BABYLON.TransformNode(name);//BABYLON.Mesh.CreateBox(name, 0, scene);
+				case 'Group' :									
+					object =  new  BABYLON.TransformNode(name);
 					if (parent !== undefined) {
 						object.parent = parent;
 					}
@@ -80,7 +107,11 @@
 					if (data.scale) {
 						var s = data.scale;
 						object.scaling = new BABYLON.Vector3(s.x, s.y, s.z );
-					}	
+					}
+					this.doneNode++;
+					if (this.showInfo) {
+						console.log("Node complete "+ this.doneNode + " of " + this.totalNode);
+					}
 					break;
 				case 'Shape':
 					object = this.addShape(data,parent);
@@ -191,8 +222,11 @@
 		
 
 		VRMLFileLoader.prototype.buildMaterialColorize = function (materialInfo) {	
-			var mat = new BABYLON.StandardMaterial("",scene);			
-            if (materialInfo.diffuseColor){
+			var mat = new BABYLON.StandardMaterial("",scene);		
+			if (materialInfo.diffuseColor){
+				mat.ambientColor =   new BABYLON.Color3(materialInfo.diffuseColor.x,materialInfo.diffuseColor.y, materialInfo.diffuseColor.z);
+			}			
+            /*if (materialInfo.diffuseColor){
 				mat.diffuseColor =   new BABYLON.Color3(materialInfo.diffuseColor.x,materialInfo.diffuseColor.y, materialInfo.diffuseColor.z);
 			}			
 			if (materialInfo.emissiveColor){
@@ -200,7 +234,7 @@
 			}			
 			if (materialInfo.specularColor){
 				mat.specularColor =   new BABYLON.Color3(materialInfo.specularColor.x,materialInfo.specularColor.y, materialInfo.specularColor.z);
-			}
+			}*/
 			//ambientColor, texture to do
 			if (materialInfo.transparency) {
 				mat.alpha = materialInfo.transparency;
@@ -312,23 +346,26 @@
 						uvs = data.texCoord.point;
 					}
 					for (var i = 0; i < data.coord.point.length; i ++ ) {
-						if (!data.texCoord) {
-							uvs.push(data.coord.point[i]);
-						}
+						/*if (!data.texCoord) {
+							uvs.push(data.coord.point[i]); //No UVS supprot for now.
+						}*/
 						positions.push(data.coord.point[i].x,data.coord.point[i].y,data.coord.point[i].z);
 					}
+					delete data.coord; //Free memory
+					delete data.texCoord; //Free memory
 				}
 				if (data.coordIndex && data.coordIndex.length && data.coordIndex.length>0) {
 					//Bug when we got -1 coordIndex to separate indices for each polygon - To be done - But EPLAN do not created face with multiple polygone
 					// indices from faces		  
 					for (var f = 0; f < data.coordIndex.length; f++) {
-					  for(var j = 0; j < data.coordIndex[f].length; j++) {
+						/* for(var j = 0; j < data.coordIndex[f].length; j++) {
 						uvs=uvs.concat(face_uvs[j]);
-					  }
+					  }*/
 					  for (i = 0; i < data.coordIndex[f].length - 2; i++) {
 						  indices.push(data.coordIndex[f][0], data.coordIndex[f][i + 2], data.coordIndex[f][i + 1]);
 					  }
 					}
+					delete data.coordIndex; //Free memory
 				}
 				var creaseAngle = data.creaseAngle ? data.creaseAngle : 2;
 				//Empty array to contain calculated values or normals added
