@@ -39,6 +39,9 @@
 			engine.runRenderLoop(function () {
 					scene.render();
 			});
+			if (this.forceLamberMaterial) {
+				scene.ambientColor = new BABYLON.Color3(1, 1, 1);
+			}			
 			return true;
         };
         VRMLFileLoader.prototype.load = function (scene, data, rootUrl) {
@@ -49,11 +52,6 @@
             return result;
         };
         VRMLFileLoader.prototype.loadAssetContainer = function (scene, data, rootUrl, onError) {
-            /*var container = new BABYLON.AssetContainer(scene);
-            this.importMesh(null, scene, data, rootUrl, container.meshes, null, null);
-			result.meshes.forEach(function (mesh) { return container.meshes.push(mesh); });
-            container.removeAllFromScene();
-            return container;*/
 			return this.importMesh(null, scene, data, rootUrl, container.meshes, null, null).then(function (result) {
                 var container = new BABYLON.AssetContainer(scene);
                 result.meshes.forEach(function (mesh) { return container.meshes.push(mesh); });
