@@ -6,15 +6,38 @@ Based on THREEJS VRMLLoader
 
 ## Todo
 
-Everything :
-
-* Material texure
-* Faceset Data :
-  * separe polygon (-1)
-  * UVS
+- Why it is mirror?
+- Material texure (for now, it force lambert material)
+- Other Node :
+  - Background
+  - OrientationInterpolator
+  - PositionInterpolator
+  - Viewpoint
+  - NavigationInfo
+  - Text
+  - Inline		
+  - Switch
+  - TimeSensor
+  - TouchSensor
+  - Annimation
+  - Extrude face	
+- Faceset Data :
+  - separe polygon (-1)
+  - UVS
+- Zip compression for big mesh
 
 ## Try
 
-I put two model, one from ThreeJs and one from my work.
+Add these script :
 
-Result for now :
+`<script src="VRMLLoader.js"></script>
+
+ <script src="vrml.js"></script>`
+
+To load an scene :
+
+`BABYLON.SceneLoader.Append("", "your_model.wrl", scene, function (scene) {});		`
+
+To load a mesh :
+
+`BABYLON.SceneLoader.ImportMesh("", "", "your_model.wrl", scene, function () {});`
